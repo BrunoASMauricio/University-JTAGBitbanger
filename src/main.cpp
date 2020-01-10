@@ -31,18 +31,20 @@ void shift(unsigned int ammount, char useconst0){
 
 void shiftIR(unsigned int ammount, char useconst0){
   advanceCLK(0,1);
+  advanceCLK(0,1);
   advanceCLK(0,0);
   advanceCLK(0,0);
   shift(ammount, useconst0);
   advanceCLK(0,1);
-  advanceCLK(0,1);
+  advanceCLK(0,0);
 }
 void shiftDR(unsigned int ammount, char useconst0){
+  advanceCLK(0,1);
   advanceCLK(0,0);
   advanceCLK(0,0);
   shift(ammount, useconst0);
   advanceCLK(0,1);
-  advanceCLK(0,1);
+  advanceCLK(0,0);
 }
 
 
@@ -54,11 +56,13 @@ void reset(){
     advanceCLK(0,1);
   }
   advanceCLK(0,0);
-  advanceCLK(0,1);
+  //advanceCLK(0,1);
   Serial.println("Reset");
 }
 void printIDCODE(){
   //DEVICE ID 0A 0000 1010
+  //11001010000001010000100100001010
+  //CA05090A
   byte_array[0] = '1';
   byte_array[1] = '0';
   byte_array[2] = '0';
@@ -93,15 +97,15 @@ void printButtonStatus(){
     Serial.println("OFF");
   }
   if(ledstatus == ON){
-    ledstatus = OFF;
-    turnLED(ON);
+    //ledstatus = OFF;
+    //turnLED(ON);
   }
 }
 void turnLED(uint8_t status){
   //Serial.print("LED: ");
   //Serial.println(status);
   if(status == ledstatus){
-    return;
+    //return;
   }
   ledstatus = status;
   byte_array[0] = '0';
