@@ -19,14 +19,16 @@ void advanceCLK(int tdo, int tms){
 
 void shift(unsigned int ammount, char useconst0){
   char temp;
-  for(iter = 0; iter < ammount-1; iter++){
+  if(ammount){
+    for(iter = 0; iter < ammount-1; iter++){
       temp = ((char)digitalRead(TDI))+'0';
       advanceCLK(useconst0 ? 0 : byte_array[iter]=='1',0);
       byte_array[iter] = temp;
     }
-    temp = ((char)digitalRead(TDI))+'0';
-    advanceCLK(useconst0 ? 0 : byte_array[iter]=='1',1);
-    byte_array[iter] = temp;
+  }
+  temp = ((char)digitalRead(TDI))+'0';
+  advanceCLK(useconst0 ? 0 : byte_array[iter]=='1',1);
+  byte_array[iter] = temp;
 }
 
 void shiftIR(unsigned int ammount, char useconst0){
@@ -47,22 +49,15 @@ void shiftDR(unsigned int ammount, char useconst0){
   advanceCLK(0,0);
 }
 
-
 void reset(){
-  digitalWrite(TMS,LOW);
-  digitalWrite(TCK, HIGH);
-  digitalWrite(TDO,LOW);
   for(int i = 0; i < 6; i++){
     advanceCLK(0,1);
   }
   advanceCLK(0,0);
-  //advanceCLK(0,1);
   Serial.println("Reset");
 }
 void printIDCODE(){
-  //DEVICE ID 0A 0000 1010
-  //11001010000001010000100100001010
-  //CA05090A
+  //DEVICE ID CA05090A
   byte_array[0] = '1';
   byte_array[1] = '0';
   byte_array[2] = '0';
@@ -70,7 +65,13 @@ void printIDCODE(){
   byte_array[4] = '0';
   shiftIR(5,0);
   shiftDR(32,1);
-  for(int i = 0; i < 32; i++) Serial.print((char)byte_array[i]);
+  for(int i = 24; i >= 0; i-=8){
+    uint8_t helper = 0;
+    for(int j = 0; j < 8; j++){
+      helper |= (byte_array[i+j]-'0')<<j;
+    }
+    Serial.print(helper, HEX);
+  }
   Serial.println();
 }
 void printButtonStatus(){
@@ -79,18 +80,12 @@ void printButtonStatus(){
   byte_array[2] = '0';
   byte_array[3] = '0';
   byte_array[4] = '0';
-  shiftIR(5,0);
-  shiftDR(148,1);
-  for(int i = 0; i < 148; i++) Serial.print((char)byte_array[i]);
-  Serial.println();
-  Serial.println((char)byte_array[135]);
-  /*
-10 1 1011011011010000111011011011011011011010011010011010010010011011010011011011010010010011011010011011011010010010011011010010011001000011101101100
-10 0 1011011011010000111011011011011011011010011010011010010010011011010011011011010010010011011010011011011010010010011011010010011001000011101101100
 
-  10 1 10110100110100001110110110111
-  10 0 10110100110100001110110110111
-  */
+  shiftIR(5,0);
+  shiftDR(0,1);//Force PIN sample
+  shiftDR(148,1);
+  shiftDR(0,1);
+
   if(byte_array[3] == '1'){
     Serial.println("ON");
   }else{
@@ -113,11 +108,14 @@ void turnLED(uint8_t status){
   byte_array[2] = '1';
   byte_array[3] = '0';
   byte_array[4] = '0';
+
   shiftIR(5,0);
-  shiftDR(148,1);
-  byte_array[137] = status+'0';
+  shiftDR(148,1);                 //Read BSR
+  byte_array[137] = status+'0';   //Change LED status
   byte_array[138] = '1';
+  Serial.println(status);
   shiftDR(148,0);
+
 }
 void setup() {
   Serial.begin(9600);
@@ -127,7 +125,7 @@ void setup() {
   pinMode(TCK,OUTPUT);
   pinMode(TDO,OUTPUT);    //input (pic32 TDI)
   digitalWrite(TMS,LOW);
-  digitalWrite(TCK, HIGH);
+  digitalWrite(TCK, LOW);
   digitalWrite(TDO,LOW);
   Serial.println("Initialized\n\n");
 }
