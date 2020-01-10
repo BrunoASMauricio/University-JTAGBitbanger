@@ -8,25 +8,55 @@
 #define TCK 9  //output
 #define TDI 10 //input (pic32 TD0)
 #define TDO 11 //output (pic32 TDI)
-#define LED 13 //built-in led
-
-#define BYPASS 0x1F         //Used for bypassing a device in a test chain; this allows the testing of off-chip circuitry and board level interconnections.
-#define HIGHZ 0x00          //Places device in a high-impedance state, all pins are forced to inputs
-#define SAMPLE_PRELOAD 0x02 //Samples all pins or loads a specific value into output latch. Captures the I/O states of the component, providing a snapshot of its operation.
-#define EXTEST 0x06         //Boundary scan. Allows the external circuitry and interconnections to be tested, by either forcing various test patterns on the output pins, or capturing test results from the input pins.
-#define IDCODE 0x01         //Shifts out the device’s ID code
 
 #define ON 1
 #define OFF 0
 
+//Sets the TDO and TMS pin values and Performs a pulse (Rise and Falling Edge)
 void advanceCLK(int tdo, int tms);
-void shift(unsigned int ammount, char useconst0);
-void shiftIR(unsigned int ammount, char useconst0);
+/*
+useconst0: 1 => TDO from DR_array, 0 => TDO = 0
+Shifts a certain ammount of values "into" tdo, through advanceCLK
+*/
+void shift(unsigned int ammount, char useconst0, uint8_t* array);
+
+//Go from Idle to shift-IR, shift in the instruction with shift and go back to Idle
+void shiftIR();
+
+/*
+Go from Idle to shift-DR, shift in the given ammount from DR with shift and go back to Idle
+useconst0: Value to pass to the shift function
+*/
 void shiftDR(unsigned int ammount, char useconst0);
+
+//Performs 5 cycles with TMS = 1 to go to the Reset state, and then advance to the Idle state
 void reset();
+
+/*
+Uses shiftIR to shift in the IDCODE instruction, and uses shiftDR to shift out the IDCODE,
+and then prints it
+*/
 void printIDCODE();
+/*
+Uses shiftIR to shift in the Sample instruction, and uses shiftDR to shift out the entire
+boundary chain into the DR_Array
+*/
+void BSRCapture();
+/*
+Uses BSRCapture to obtain the current values fro mthe boundary chain, checks the button's
+state and prints it.
+*/
 void printButtonStatus();
+/*
+Changes the LEDs' state to status (if it isn't already)
+*/
 void turnLED(uint8_t status);
+/*
+Assumes the LED was forced OFF, and checks if it should be ON
+Turns it ON if so
+*/
+void checkLED();
+
 
 #include "main.cpp"
 

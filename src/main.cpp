@@ -3,69 +3,66 @@
 
 #include "main.h"
 
-uint8_t DR_array[148];
-uint8_t IR_array[5];
-uint16_t iter;               //Multipurpose iterator
-uint16_t iter2;               //Multipurpose iterator
-uint8_t ledstatus;
+uint8_t DR_array[148];      //Store boundary scan and idcode
+uint8_t IR_array[5];        //Store Instruction
+
+uint16_t iter;              //Multipurpose iterator
+uint16_t iter2;             //Multipurpose iterator
+uint8_t ledstatus;          //Store the current led status
 
 void advanceCLK(int tdo, int tms){
   digitalWrite(TDO, tdo);
   digitalWrite(TMS,tms);
-  digitalWrite(TCK, HIGH);
-  //delayMicroseconds(2);
   digitalWrite(TCK, LOW);
-  //delayMicroseconds(2);
+  delayMicroseconds(2);
+  digitalWrite(TCK, HIGH);
+  delayMicroseconds(2);
 }
 
 void shift(unsigned int ammount, char useconst0, uint8_t* array){
-  char temp;
   if(ammount){
     for(iter = 0; iter < ammount-1; iter++){
-      temp = ((char)digitalRead(TDI))+'0';
       advanceCLK(useconst0 ? 0 : array[iter]=='1',0);
-      array[iter] = temp;
+      array[iter] = ((char)digitalRead(TDI))+'0';
     }
   }
-  temp = ((char)digitalRead(TDI))+'0';
+  //Exit "while" writting/reading the last byte
   advanceCLK(useconst0 ? 0 : array[iter]=='1',1);
-  array[iter] = temp;
+  array[iter] = ((char)digitalRead(TDI))+'0';
 }
-
-void shiftIR(unsigned int ammount, char useconst0){
-  advanceCLK(0,1);
-  advanceCLK(0,1);
-  advanceCLK(0,0);
-  advanceCLK(0,0);
-  shift(ammount, useconst0,IR_array);
+void shiftIR(){
+  advanceCLK(0,1);                    //Go from Idle to shift-IR
   advanceCLK(0,1);
   advanceCLK(0,0);
+  advanceCLK(0,0);
+  shift(5, 0, IR_array); //Shift Instruction in
+  advanceCLK(0,1);
+  advanceCLK(0,0);                    //Go back to Idle
 }
 void shiftDR(unsigned int ammount, char useconst0){
+  advanceCLK(0,1);                    //Go from Idle to shift-DR
+  advanceCLK(0,0);
+  advanceCLK(0,0);
+  shift(ammount, useconst0,DR_array); //Shift Data in
   advanceCLK(0,1);
-  advanceCLK(0,0);
-  advanceCLK(0,0);
-  shift(ammount, useconst0,DR_array);
-  advanceCLK(0,1);
-  advanceCLK(0,0);
+  advanceCLK(0,0);                    //Go back to Idle
 }
 
 void reset(){
   for(int i = 0; i < 6; i++){
     advanceCLK(0,1);
   }
-  advanceCLK(0,0);
+  advanceCLK(0,0);                    //Go to Idle
   Serial.println("Reset");
 }
 
 void printIDCODE(){
-  //DEVICE ID CA05090A
   IR_array[0] = '1';
   IR_array[1] = '0';
   IR_array[2] = '0';
   IR_array[3] = '0';
   IR_array[4] = '0';
-  shiftIR(5,0);
+  shiftIR();
 
   shiftDR(32,1);
   for(int i = 24; i >= 0; i-=8){
@@ -85,10 +82,11 @@ void BSRCapture(){
   IR_array[3] = '0';
   IR_array[4] = '0';
 
-  shiftIR(5,0);
-  shiftDR(0,1);//Force PIN sample
+  shiftIR();
+  shiftDR(0,1);     //Force Pin sample
   shiftDR(148,1);
 }
+
 void printButtonStatus(){
   BSRCapture();
   shiftDR(0,1);
@@ -98,21 +96,30 @@ void printButtonStatus(){
     Serial.println("OFF");
   }
 }
-void turnLED(uint8_t status){
-  BSRCapture();
-  DR_array[137] = status+'0';   //Change LED status
-  DR_array[138] = '1';
-  Serial.println(status);
 
+void turnLED(uint8_t status){
+  if(status == ledstatus){
+    return;
+  }
+  ledstatus = status;
+  BSRCapture();                 //Sample boundary registers and change only the LED control and output registers
+  DR_array[137] = status+'0';
+  DR_array[138] = status+'0';
+  
   IR_array[0] = '0';
   IR_array[1] = '1';
   IR_array[2] = '1';
   IR_array[3] = '0';
   IR_array[4] = '0';
 
-  shiftIR(5,0);
+  shiftIR();
   shiftDR(148,0);
-
+}
+void checkLED(){
+  if(ledstatus == ON){
+    ledstatus = OFF;
+    turnLED(ON);
+  }
 }
 void setup() {
   Serial.begin(9600);
@@ -123,29 +130,29 @@ void setup() {
   digitalWrite(TMS,LOW);
   digitalWrite(TCK, LOW);
   digitalWrite(TDO,LOW);
-  reset();
   Serial.println("Initialized\n\n");
 }
+
 void loop() {
   if(Serial.available()){
     switch(Serial.read()){//ia is returning correctly
       case 'r'://reset
         reset();
+        ledstatus = OFF;
       break;
-      case 'a'://IDCODE: 1001 0100 0000 1010 0001 0010 0001 0100
+      case 'a'://IDCODE: 5090A053
         printIDCODE();
+        checkLED();
       break;
       case 'b'://Button
         printButtonStatus();
+        checkLED();
       break;
       case '1'://Turn led on  SCK2 RG6
         turnLED(ON);
       break;
       case '0'://Turn led off
         turnLED(OFF);
-      break;
-      case 'e':
-        shiftDR(32,1);
       break;
     }
   }
