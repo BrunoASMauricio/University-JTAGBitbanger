@@ -3,7 +3,8 @@
 
 #include "main.h"
 
-uint8_t byte_array[148];
+uint8_t DR_array[148];
+uint8_t IR_array[5];
 uint16_t iter;               //Multipurpose iterator
 uint16_t iter2;               //Multipurpose iterator
 uint8_t ledstatus;
@@ -17,18 +18,18 @@ void advanceCLK(int tdo, int tms){
   //delayMicroseconds(2);
 }
 
-void shift(unsigned int ammount, char useconst0){
+void shift(unsigned int ammount, char useconst0, uint8_t* array){
   char temp;
   if(ammount){
     for(iter = 0; iter < ammount-1; iter++){
       temp = ((char)digitalRead(TDI))+'0';
-      advanceCLK(useconst0 ? 0 : byte_array[iter]=='1',0);
-      byte_array[iter] = temp;
+      advanceCLK(useconst0 ? 0 : array[iter]=='1',0);
+      array[iter] = temp;
     }
   }
   temp = ((char)digitalRead(TDI))+'0';
-  advanceCLK(useconst0 ? 0 : byte_array[iter]=='1',1);
-  byte_array[iter] = temp;
+  advanceCLK(useconst0 ? 0 : array[iter]=='1',1);
+  array[iter] = temp;
 }
 
 void shiftIR(unsigned int ammount, char useconst0){
@@ -36,7 +37,7 @@ void shiftIR(unsigned int ammount, char useconst0){
   advanceCLK(0,1);
   advanceCLK(0,0);
   advanceCLK(0,0);
-  shift(ammount, useconst0);
+  shift(ammount, useconst0,IR_array);
   advanceCLK(0,1);
   advanceCLK(0,0);
 }
@@ -44,7 +45,7 @@ void shiftDR(unsigned int ammount, char useconst0){
   advanceCLK(0,1);
   advanceCLK(0,0);
   advanceCLK(0,0);
-  shift(ammount, useconst0);
+  shift(ammount, useconst0,DR_array);
   advanceCLK(0,1);
   advanceCLK(0,0);
 }
@@ -56,70 +57,65 @@ void reset(){
   advanceCLK(0,0);
   Serial.println("Reset");
 }
+
 void printIDCODE(){
   //DEVICE ID CA05090A
-  byte_array[0] = '1';
-  byte_array[1] = '0';
-  byte_array[2] = '0';
-  byte_array[3] = '0';
-  byte_array[4] = '0';
+  IR_array[0] = '1';
+  IR_array[1] = '0';
+  IR_array[2] = '0';
+  IR_array[3] = '0';
+  IR_array[4] = '0';
   shiftIR(5,0);
+
   shiftDR(32,1);
   for(int i = 24; i >= 0; i-=8){
     uint8_t helper = 0;
     for(int j = 0; j < 8; j++){
-      helper |= (byte_array[i+j]-'0')<<j;
+      helper |= (DR_array[i+j]-'0')<<j;
     }
     Serial.print(helper, HEX);
   }
   Serial.println();
 }
-void printButtonStatus(){
-  byte_array[0] = '0';
-  byte_array[1] = '1';
-  byte_array[2] = '0';
-  byte_array[3] = '0';
-  byte_array[4] = '0';
+
+void BSRCapture(){
+  IR_array[0] = '0';
+  IR_array[1] = '1';
+  IR_array[2] = '0';
+  IR_array[3] = '0';
+  IR_array[4] = '0';
 
   shiftIR(5,0);
   shiftDR(0,1);//Force PIN sample
   shiftDR(148,1);
+}
+void printButtonStatus(){
+  BSRCapture();
   shiftDR(0,1);
-
-  if(byte_array[3] == '1'){
+  if(DR_array[3] == '1'){
     Serial.println("ON");
   }else{
     Serial.println("OFF");
   }
-  if(ledstatus == ON){
-    //ledstatus = OFF;
-    //turnLED(ON);
-  }
 }
 void turnLED(uint8_t status){
-  //Serial.print("LED: ");
-  //Serial.println(status);
-  if(status == ledstatus){
-    //return;
-  }
-  ledstatus = status;
-  byte_array[0] = '0';
-  byte_array[1] = '1';
-  byte_array[2] = '1';
-  byte_array[3] = '0';
-  byte_array[4] = '0';
+  BSRCapture();
+  DR_array[137] = status+'0';   //Change LED status
+  DR_array[138] = '1';
+  Serial.println(status);
+
+  IR_array[0] = '0';
+  IR_array[1] = '1';
+  IR_array[2] = '1';
+  IR_array[3] = '0';
+  IR_array[4] = '0';
 
   shiftIR(5,0);
-  shiftDR(148,1);                 //Read BSR
-  byte_array[137] = status+'0';   //Change LED status
-  byte_array[138] = '1';
-  Serial.println(status);
   shiftDR(148,0);
 
 }
 void setup() {
   Serial.begin(9600);
-  ledstatus = OFF;
   pinMode(TDI,INPUT);     //input (pic32 TD0)
   pinMode(TMS,OUTPUT);
   pinMode(TCK,OUTPUT);
@@ -127,6 +123,7 @@ void setup() {
   digitalWrite(TMS,LOW);
   digitalWrite(TCK, LOW);
   digitalWrite(TDO,LOW);
+  reset();
   Serial.println("Initialized\n\n");
 }
 void loop() {
