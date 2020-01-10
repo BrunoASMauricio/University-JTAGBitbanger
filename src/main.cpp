@@ -140,7 +140,7 @@ void loop() {
         reset();
         ledstatus = OFF;
       break;
-      case 'a'://IDCODE: 5090A053
+      case 'd'://IDCODE: 5090A053
         printIDCODE();
         checkLED();
       break;
